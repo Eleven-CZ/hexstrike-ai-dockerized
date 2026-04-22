@@ -274,7 +274,16 @@ def setup_mcp_server(hexstrike_client: HexStrikeClient) -> FastMCP:
     Returns:
         Configured FastMCP instance
     """
-    mcp = FastMCP("hexstrike-ai-mcp")
+    # Try to pass host to FastMCP to configure SSE Host header validation
+    # In newer MCP SDK versions, this controls which Host headers are accepted
+    try:
+        mcp = FastMCP("hexstrike-ai-mcp", host="0.0.0.0")
+    except TypeError:
+        mcp = FastMCP("hexstrike-ai-mcp")
+
+    # Ensure host is set to 0.0.0.0 for external access (bypasses Host validation)
+    if hasattr(mcp, 'host'):
+        mcp.host = "0.0.0.0"
 
     # ============================================================================
     # CORE NETWORK SCANNING TOOLS
@@ -5472,20 +5481,48 @@ def main():
             mcp.run(transport="stdio")
         elif args.transport == "sse":
             import uvicorn
+
             logger.info(f"🚀 Starting HexStrike AI MCP server (SSE mode) on http://{args.host}:{args.port}")
             logger.info(f"📡 SSE endpoint: http://{args.host}:{args.port}/sse")
             logger.info("🤖 Ready to serve AI agents with enhanced cybersecurity capabilities")
-            # Use uvicorn to serve the SSE ASGI app with custom host/port
+
+            # Pure ASGI middleware to patch Host header for MCP SSE Host validation.
+            # The MCP SDK validates that the incoming Host header matches its configured
+            # host. When clients connect via container IP (e.g., 192.168.50.136),
+            # the Host header doesn't match "localhost", causing 421 Misdirected Request.
+            # This middleware directly modifies the ASGI scope before passing to the inner app,
+            # which is more reliable than Starlette's BaseHTTPMiddleware.
+            _patch_port = args.port
+            class HostPatchMiddleware:
+                def __init__(self, app):
+                    self.app = app
+
+                async def __call__(self, scope, receive, send):
+                    if scope["type"] in ("http", "websocket"):
+                        # Patch server name in ASGI scope
+                        scope = dict(scope)  # shallow copy to avoid mutating original
+                        scope["server"] = ("localhost", _patch_port)
+                        # Patch Host header
+                        patched_headers = []
+                        for name, value in scope.get("headers", []):
+                            if name == b"host":
+                                value = b"localhost"
+                            patched_headers.append((name, value))
+                        scope["headers"] = patched_headers
+                    await self.app(scope, receive, send)
+
+            # Try multiple approaches to start SSE server
+            sse_app = None
             try:
-                # mcp SDK 1.6.0+: run() supports host/port directly
-                mcp.run(transport="sse", host=args.host, port=args.port)
-            except TypeError:
-                # Older mcp SDK: get SSE ASGI app and run with uvicorn
+                # Try getting the SSE ASGI app from FastMCP
+                sse_app = mcp.sse_app()
+                logger.info("📡 Using mcp.sse_app() for SSE transport")
+            except (AttributeError, TypeError):
+                pass
+
+            if sse_app is None:
+                # Fallback: manual SSE transport setup
                 try:
-                    sse_app = mcp.sse_app()
-                    uvicorn.run(sse_app, host=args.host, port=args.port)
-                except AttributeError:
-                    # Fallback: manual SSE transport setup
                     from mcp.server.sse import SseServerTransport
                     from starlette.applications import Starlette
                     from starlette.routing import Route, Mount
@@ -5503,14 +5540,21 @@ def main():
                                 server.create_initialization_options()
                             )
 
-                    starlette_app = Starlette(
+                    sse_app = Starlette(
                         debug=True,
                         routes=[
                             Route("/sse", endpoint=handle_sse),
                             Mount("/messages/", app=sse.handle_post_message),
                         ],
                     )
-                    uvicorn.run(starlette_app, host=args.host, port=args.port)
+                    logger.info("📡 Using manual SSE transport setup")
+                except Exception as e:
+                    logger.error(f"💥 Failed to create SSE app: {e}")
+                    sys.exit(1)
+
+            # Wrap with Host patch middleware to bypass MCP Host validation
+            patched_app = HostPatchMiddleware(sse_app)
+            uvicorn.run(patched_app, host=args.host, port=args.port)
         elif args.transport == "streamable-http":
             import uvicorn
             logger.info(f"🚀 Starting HexStrike AI MCP server (Streamable HTTP mode) on http://{args.host}:{args.port}")
