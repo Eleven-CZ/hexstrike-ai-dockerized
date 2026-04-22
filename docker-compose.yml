@@ -1,0 +1,17 @@
+services:
+  hexstrike-mcp:
+    build:
+      context: .
+      network: host
+    container_name: hexstrike-mcp
+    ports:
+      - "8899:8899"   # Flask API server
+      - "9010:9010"   # MCP SSE server (for AI agents)
+    environment:
+      - PYTHONUNBUFFERED=1
+      - HEXSTRIKE_HOST=0.0.0.0
+      - HEXSTRIKE_PORT=8899
+      - MCP_TRANSPORT=sse
+      - MCP_HOST=0.0.0.0
+      - MCP_PORT=9010
+    restart: unless-stopped
