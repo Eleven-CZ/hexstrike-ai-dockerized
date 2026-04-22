@@ -5471,15 +5471,60 @@ def main():
             logger.info("🤖 Ready to serve AI agents with enhanced cybersecurity capabilities")
             mcp.run(transport="stdio")
         elif args.transport == "sse":
+            import uvicorn
             logger.info(f"🚀 Starting HexStrike AI MCP server (SSE mode) on http://{args.host}:{args.port}")
             logger.info(f"📡 SSE endpoint: http://{args.host}:{args.port}/sse")
             logger.info("🤖 Ready to serve AI agents with enhanced cybersecurity capabilities")
-            mcp.run(transport="sse", host=args.host, port=args.port)
+            # Use uvicorn to serve the SSE ASGI app with custom host/port
+            try:
+                # mcp SDK 1.6.0+: run() supports host/port directly
+                mcp.run(transport="sse", host=args.host, port=args.port)
+            except TypeError:
+                # Older mcp SDK: get SSE ASGI app and run with uvicorn
+                try:
+                    sse_app = mcp.sse_app()
+                    uvicorn.run(sse_app, host=args.host, port=args.port)
+                except AttributeError:
+                    # Fallback: manual SSE transport setup
+                    from mcp.server.sse import SseServerTransport
+                    from starlette.applications import Starlette
+                    from starlette.routing import Route, Mount
+
+                    sse = SseServerTransport("/messages/")
+                    server = mcp._mcp_server
+
+                    async def handle_sse(request):
+                        async with sse.connect_sse(
+                            request.scope, request.receive, request._send
+                        ) as streams:
+                            await server.run(
+                                streams[0],
+                                streams[1],
+                                server.create_initialization_options()
+                            )
+
+                    starlette_app = Starlette(
+                        debug=True,
+                        routes=[
+                            Route("/sse", endpoint=handle_sse),
+                            Mount("/messages/", app=sse.handle_post_message),
+                        ],
+                    )
+                    uvicorn.run(starlette_app, host=args.host, port=args.port)
         elif args.transport == "streamable-http":
+            import uvicorn
             logger.info(f"🚀 Starting HexStrike AI MCP server (Streamable HTTP mode) on http://{args.host}:{args.port}")
             logger.info(f"📡 Endpoint: http://{args.host}:{args.port}/mcp")
             logger.info("🤖 Ready to serve AI agents with enhanced cybersecurity capabilities")
-            mcp.run(transport="streamable-http", host=args.host, port=args.port)
+            try:
+                mcp.run(transport="streamable-http", host=args.host, port=args.port)
+            except TypeError:
+                try:
+                    streamable_app = mcp.streamable_http_app()
+                    uvicorn.run(streamable_app, host=args.host, port=args.port)
+                except AttributeError:
+                    logger.error("💥 Streamable HTTP transport not supported by installed mcp SDK version")
+                    sys.exit(1)
         else:
             logger.error(f"💥 Unsupported transport mode: {args.transport}")
             sys.exit(1)
