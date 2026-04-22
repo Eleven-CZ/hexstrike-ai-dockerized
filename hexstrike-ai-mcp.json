@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "hexstrike-ai": {
+      "url": "http://IPADDRESS:9010/sse",
+      "description": "HexStrike AI v6.0 - Advanced Cybersecurity Automation Platform (SSE Transport). Turn off alwaysAllow if you dont want autonomous execution!",
+      "timeout": 300,
+      "alwaysAllow": []
+    }
+  }
+}
