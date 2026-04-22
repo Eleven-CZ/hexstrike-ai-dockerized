@@ -93,7 +93,7 @@ RUN chmod +x /opt/hexstrike/entrypoint.sh
 
 # Section 12: Environment Variables for SSE Transport
 # API Server config
-ENV HEXSTRIKE_HOST=127.0.0.1
+ENV HEXSTRIKE_HOST=0.0.0.0
 ENV HEXSTRIKE_PORT=8899
 # MCP SSE Server config
 ENV MCP_TRANSPORT=sse

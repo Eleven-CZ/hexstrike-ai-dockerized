@@ -5,7 +5,7 @@
 set -e
 
 # Configuration with environment variable overrides
-HEXSTRIKE_HOST="${HEXSTRIKE_HOST:-127.0.0.1}"
+HEXSTRIKE_HOST="${HEXSTRIKE_HOST:-0.0.0.0}"
 HEXSTRIKE_PORT="${HEXSTRIKE_PORT:-8899}"
 MCP_TRANSPORT="${MCP_TRANSPORT:-sse}"
 MCP_HOST="${MCP_HOST:-0.0.0.0}"
