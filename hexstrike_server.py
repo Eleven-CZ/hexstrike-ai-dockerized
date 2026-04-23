@@ -427,6 +427,33 @@ class ModernVisualEngine:
 {header_color}{'═' * 70}{ModernVisualEngine.COLORS['RESET']}"""
 
     @staticmethod
+    def create_summary_report(results: Dict[str, Any]) -> str:
+        """Generate a beautiful summary report"""
+
+        total_vulns = len(results.get('vulnerabilities', []))
+        critical_vulns = len([v for v in results.get('vulnerabilities', []) if v.get('severity') == 'critical'])
+        high_vulns = len([v for v in results.get('vulnerabilities', []) if v.get('severity') == 'high'])
+        execution_time = results.get('execution_time', 0)
+        tools_used = results.get('tools_used', [])
+
+        report = f"""
+{ModernVisualEngine.COLORS['MATRIX_GREEN']}{ModernVisualEngine.COLORS['BOLD']}╔══════════════════════════════════════════════════════════════════════════════╗
+║                              📊 SCAN SUMMARY REPORT                          ║
+╠══════════════════════════════════════════════════════════════════════════════╣{ModernVisualEngine.COLORS['RESET']}
+{ModernVisualEngine.COLORS['BOLD']}║{ModernVisualEngine.COLORS['RESET']} {ModernVisualEngine.COLORS['NEON_BLUE']}🎯 Target:{ModernVisualEngine.COLORS['RESET']} {results.get('target', 'Unknown')[:60]}
+{ModernVisualEngine.COLORS['BOLD']}║{ModernVisualEngine.COLORS['RESET']} {ModernVisualEngine.COLORS['CYBER_ORANGE']}⏱️  Duration:{ModernVisualEngine.COLORS['RESET']} {execution_time:.2f} seconds
+{ModernVisualEngine.COLORS['BOLD']}║{ModernVisualEngine.COLORS['RESET']} {ModernVisualEngine.COLORS['WARNING']}🛠️  Tools Used:{ModernVisualEngine.COLORS['RESET']} {len(tools_used)} tools
+{ModernVisualEngine.COLORS['BOLD']}╠──────────────────────────────────────────────────────────────────────────────╣{ModernVisualEngine.COLORS['RESET']}
+{ModernVisualEngine.COLORS['BOLD']}║{ModernVisualEngine.COLORS['RESET']} {ModernVisualEngine.COLORS['HACKER_RED']}🔥 Critical:{ModernVisualEngine.COLORS['RESET']} {critical_vulns} vulnerabilities
+{ModernVisualEngine.COLORS['BOLD']}║{ModernVisualEngine.COLORS['RESET']} {ModernVisualEngine.COLORS['ERROR']}⚠️  High:{ModernVisualEngine.COLORS['RESET']} {high_vulns} vulnerabilities
+{ModernVisualEngine.COLORS['BOLD']}║{ModernVisualEngine.COLORS['RESET']} {ModernVisualEngine.COLORS['MATRIX_GREEN']}📈 Total Found:{ModernVisualEngine.COLORS['RESET']} {total_vulns} vulnerabilities
+{ModernVisualEngine.COLORS['BOLD']}╠──────────────────────────────────────────────────────────────────────────────╣{ModernVisualEngine.COLORS['RESET']}
+{ModernVisualEngine.COLORS['BOLD']}║{ModernVisualEngine.COLORS['RESET']} {ModernVisualEngine.COLORS['ELECTRIC_PURPLE']}🚀 Tools:{ModernVisualEngine.COLORS['RESET']} {', '.join(tools_used[:5])}{'...' if len(tools_used) > 5 else ''}
+{ModernVisualEngine.COLORS['MATRIX_GREEN']}{ModernVisualEngine.COLORS['BOLD']}╚══════════════════════════════════════════════════════════════════════════════╝{ModernVisualEngine.COLORS['RESET']}
+"""
+        return report
+
+    @staticmethod
     def format_command_execution(command: str, status: str, duration: float = 0.0) -> str:
         """Format command execution with enhanced styling"""
         status_colors = {
@@ -9501,8 +9528,7 @@ def create_summary_report():
             return jsonify({"error": "No data provided"}), 400
 
         # Create summary report
-        visual_engine = ModernVisualEngine()
-        report = visual_engine.create_summary_report(data)
+        report = ModernVisualEngine.create_summary_report(data)
 
         return jsonify({
             "success": True,
@@ -13158,7 +13184,7 @@ def httpx():
             logger.warning("🌐 httpx called without target parameter")
             return jsonify({"error": "Target parameter is required"}), 400
 
-        command = f"httpx -l {target} -t {threads}"
+        command = f"httpx -u {target} -t {threads}"
 
         if probe:
             command += " -probe"
