@@ -7,6 +7,17 @@ services:
     ports:
       - "8899:8899"   # Flask API server
       - "9010:9010"   # MCP SSE server (for AI agents)
+    # 必须的网络权限，否则 Nmap/Masscan/ARP-Scan 等工具无法执行原始套接字操作
+    cap_add:
+      - NET_ADMIN      # 允许网络管理操作（路由表、接口配置等）
+      - NET_RAW        # 允许使用原始套接字（Nmap SYN 扫描、OS 检测等必需）
+      - SYS_PTRACE     # 允许进程调试（GDB/strace 等工具必需）
+    # 可选：如需在容器内运行 Docker，取消下面的注释
+    # privileged: true
+    # volumes:
+    #   - /var/run/docker.sock:/var/run/docker.sock
+    security_opt:
+      - no-new-privileges:false  # 允许提升权限以执行安全工具
     environment:
       - PYTHONUNBUFFERED=1
       - HEXSTRIKE_HOST=0.0.0.0
