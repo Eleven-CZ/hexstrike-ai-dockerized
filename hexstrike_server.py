@@ -9099,11 +9099,14 @@ def health_check():
     )
     tools_status = {}
 
+    # Use shutil.which() instead of execute_command("which ...") to avoid:
+    # 1. Spawning a subprocess for every tool on each health check
+    # 2. Flooding logs with "which xxx FAILED" messages every 30s (Docker HEALTHCHECK)
+    # 3. Failed results were never cached, causing infinite re-execution loop
     for tool in all_tools:
         try:
-            result = execute_command(f"which {tool}", use_cache=True)
-            tools_status[tool] = result["success"]
-        except:
+            tools_status[tool] = shutil.which(tool) is not None
+        except Exception:
             tools_status[tool] = False
 
     all_essential_tools_available = all(tools_status[tool] for tool in essential_tools)
